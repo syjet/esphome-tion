@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "log.h"
 #include "pi_controller.h"
 
@@ -39,9 +40,14 @@ float PIController::update(int setpoint, int current) {
   // 10: candidate outdoor airflow rate [L/s]
   const float v_oa_c = -this->kp_ * (e_db + (i / this->ti_));
 
+  // Базовый интеграл, соответствующий минимальной скорости без компенсации отрицательной ошибки
+  const float base_min_ib = -this->ti_ * (this->v_oa_min_ / this->kp_);
+
   // 11: integral error with anti-integral windup [min.ppm-CO2]
   if (v_oa_c < this->v_oa_min_) {
-    this->ib_ = -this->ti_ * (e_db + (this->v_oa_min_ / this->kp_));
+    const float windup_min_ib = -this->ti_ * (e_db + (this->v_oa_min_ / this->kp_));
+    // Не позволяем интегралу задираться выше базового минимума при чистом воздухе (e_db > 0)
+    this->ib_ = std::max(windup_min_ib, base_min_ib);
   } else if (v_oa_c > this->v_oa_max_) {
     this->ib_ = -this->ti_ * (e_db + (this->v_oa_max_ / this->kp_));
   } else {
@@ -51,7 +57,9 @@ float PIController::update(int setpoint, int current) {
   // 12: outdoor airflow rate [L/s]
   const float v_oa = -this->kp_ * (e_db + (this->ib_ / this->ti_));
 
-  return v_oa;
+  ESP_LOGV(TAG, "sp=%d, cur=%d, e_db=%d, ib=%.2f, v_oa=%.2f", setpoint, current, e_db, this->ib_, v_oa);
+
+  return std::clamp(v_oa, this->v_oa_min_, this->v_oa_max_);
 }
 
 }  // namespace auto_co2
