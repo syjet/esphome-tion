@@ -35,7 +35,7 @@ float PIController::update(int setpoint, int current) {
                                           : 0;
 
   // 9: integral error [min.ppm-CO2]
-  const float dt_s = this->dt_s_();
+  const float dt_s = std::clamp(this->dt_s_(), 0.0f, 120.0f);
   const float i = this->ib_ + (dt_s / 60.0f) * e_db;
 
   // 10: candidate outdoor airflow rate [m3/h]
@@ -43,11 +43,12 @@ float PIController::update(int setpoint, int current) {
 
   // Базовый интеграл, соответствующий минимальному притоку без компенсации отрицательной ошибки
   const float base_min_ib = -this->ti_ * (this->v_oa_min_ / this->kp_);
+  // Ниже этого e_db ветка v_oa_c < v_oa_min_ недостижима при ib<=0 (структурная гарантия ib_<=0)
+  const float e_db_floor = -this->v_oa_min_ / this->kp_;
 
   // 11: integral error with anti-integral windup [min.ppm-CO2]
   if (v_oa_c < this->v_oa_min_) {
-    const float windup_min_ib = -this->ti_ * (e_db + (this->v_oa_min_ / this->kp_));
-    // Не позволяем интегралу задираться выше базового минимума при чистом воздухе (e_db > 0)
+    const float windup_min_ib = -this->ti_ * (std::max(static_cast<float>(e_db), e_db_floor) + (this->v_oa_min_ / this->kp_));
     this->ib_ = std::max(windup_min_ib, base_min_ib);
   } else if (v_oa_c > this->v_oa_max_) {
     this->ib_ = -this->ti_ * (e_db + (this->v_oa_max_ / this->kp_));
@@ -60,8 +61,9 @@ float PIController::update(int setpoint, int current) {
   const float v_oa_out = std::clamp(v_oa, this->v_oa_min_, this->v_oa_max_);
 
   ESP_LOGI(TAG,
-           "sp=%dppm, cur=%dppm, dt=%.0fs, ib=%.2fmin*ppm, raw=%.2fm3/h, out=%.2fm3/h [%.0f..%.0fm3/h] (kp=%.4f, ti=%.1fmin, db=%dppm)",
-           setpoint, current, dt_s, this->ib_, v_oa, v_oa_out, this->v_oa_min_, this->v_oa_max_, this->kp_, this->ti_, this->db_);
+           "sp=%dppm, cur=%dppm, e_db=%dppm, dt=%.1fs, ib=%.2fmin*ppm, raw=%.2fm3/h, out=%.2fm3/h [%.0f..%.0fm3/h] (kp=%.4f, ti=%.1fmin, db=%dppm)",
+           setpoint, current, e_db, dt_s, this->ib_, v_oa, v_oa_out,
+           this->v_oa_min_, this->v_oa_max_, this->kp_, this->ti_, this->db_);
 
   return v_oa_out;
 }
