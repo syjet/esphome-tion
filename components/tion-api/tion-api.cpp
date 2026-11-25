@@ -963,12 +963,18 @@ bool TionApiBase::auto_update(uint16_t current, TionStateCall *call) {
 
 #ifdef TION_ENABLE_PI_CONTROLLER
 uint8_t TionApiBase::auto_pi_update_(uint16_t current) {
-  int rate = this->auto_pi_.update(this->auto_setpoint_, current);
-  TION_LOGV(TAG, "Auto PI rate: %d", rate);
-  if (rate > 0) {
-    // приводим m^3/h в скорость вентиляции
+  const float rate = this->auto_pi_.update(this->auto_setpoint_, current);
+  TION_LOGV(TAG, "Auto PI rate: %.2f", rate);
+  if (rate > 0.0f) {
+    const uint8_t cur_speed = this->state_.get_fan_speed();
+    constexpr float HYSTERESIS = 1.6f;
+
+    // приводим m^3/h в скорость вентиляции с гистерезисом при понижении
     for (auto i = this->traits_.max_fan_speed; i > 0; i--) {
-      int test = this->traits_.auto_prod[i - 1];
+      float test = this->traits_.auto_prod[i - 1];
+      if (i <= cur_speed && i > 1) {
+        test -= HYSTERESIS;
+      }
       if (rate > test) {
         // отсечем нижний предел
         if (i < this->auto_min_fan_speed_) {
