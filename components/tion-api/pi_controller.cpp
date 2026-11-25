@@ -51,7 +51,8 @@ float PIController::update(int setpoint, int current) {
     const float windup_min_ib = -this->ti_ * (std::max(static_cast<float>(e_db), e_db_floor) + (this->v_oa_min_ / this->kp_));
     this->ib_ = std::max(windup_min_ib, base_min_ib);
   } else if (v_oa_c > this->v_oa_max_) {
-    this->ib_ = -this->ti_ * (e_db + (this->v_oa_max_ / this->kp_));
+    const float windup_max_ib = -this->ti_ * (e_db + (this->v_oa_max_ / this->kp_));
+    this->ib_ = std::min(windup_max_ib, 0.0f);
   } else {
     this->ib_ = i;
   }
