@@ -924,8 +924,8 @@ bool TionApiBase::auto_update(uint16_t current, TionStateCall *call) {
     INVALID_STATE_CALL();
     return false;
   }
-
-  if (current < TION_AUTO_MIN_SETPOINT) {
+  
+  if (current < TION_AUTO_MIN_SETPOINT || current > 5000) {
     TION_LOGD(TAG, "Invalid co2 level: %u", current);
     return false;
   }
