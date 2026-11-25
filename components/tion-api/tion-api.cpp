@@ -969,10 +969,15 @@ uint8_t TionApiBase::auto_pi_update_(uint16_t current) {
     const uint8_t cur_speed = this->state_.get_fan_speed();
     constexpr float HYSTERESIS = 1.6f;
 
-    // приводим m^3/h в скорость вентиляции с гистерезисом при понижении
+    // приводим m^3/h в скорость вентиляции с гистерезисом
     for (auto i = this->traits_.max_fan_speed; i > 0; i--) {
       float test = this->traits_.auto_prod[i - 1];
-      if (i <= cur_speed && i > 1) {
+      if (i == this->auto_min_fan_speed_ + 1) {
+        // для первой рабочей ступени сдвигаем порог включения вверх, так как rate ограничен снизу auto_prod[min]
+        if (cur_speed <= this->auto_min_fan_speed_) {
+          test += HYSTERESIS;
+        }
+      } else if (i <= cur_speed) {
         test -= HYSTERESIS;
       }
       if (rate > test) {
