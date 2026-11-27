@@ -34,7 +34,7 @@ float PIController::update(int setpoint, int current) {
       /**/ current > setpoint + this->db_ ? e + this->db_
                                           : 0;
 
-  // Базовый интеграл, соответствующий минимальному притоку без компенсации отрицательной ошибки
+  // Нижняя полка интеграла при чистом воздухе (e_db > 0)
   const float base_min_ib = -this->ti_ * (this->v_oa_min_ / this->kp_);
   // Ниже этого e_db ветка v_oa_c < v_oa_min_ недостижима при ib<=0 (структурная гарантия ib_<=0)
   const float e_db_floor = -this->v_oa_min_ / this->kp_;
@@ -44,18 +44,17 @@ float PIController::update(int setpoint, int current) {
   float i = this->ib_;
   if (e_db != 0) {
     i += (dt_s / 60.0f) * e_db;
-  } else if (i < base_min_ib) {
-    // Мягкая разрядка интегратора в мертвой зоне к базовому минимуму
-    const float decay_tau = std::max(this->ti_ * 2.0f, 1.0f);
+  } else if (i < 0.0f) {
+    const float decay_tau = std::max(this->ti_, 1.0f);
     const float alpha = std::min((dt_s / 60.0f) / decay_tau, 1.0f);
-    i += alpha * (base_min_ib - i);
+    i += alpha * (0.0f - i);
   }
 
   // 10: candidate outdoor airflow rate [m3/h]
   const float v_oa_c = -this->kp_ * (e_db + (i / this->ti_));
 
   // 11: integral error with anti-integral windup [min.ppm-CO2]
-  if (v_oa_c < this->v_oa_min_) {
+  if (e_db > 0 && v_oa_c < this->v_oa_min_) {
     const float windup_min_ib = -this->ti_ * (std::max(static_cast<float>(e_db), e_db_floor) + (this->v_oa_min_ / this->kp_));
     this->ib_ = std::max(windup_min_ib, base_min_ib);
   } else if (v_oa_c > this->v_oa_max_) {
