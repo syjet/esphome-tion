@@ -31,7 +31,7 @@ class PIController {
 
   /// @brief Resets integral error.
   void reset() {
-    this->ib_ = 0;
+    this->ib_ = (this->kp_ > 0.0f && !std::isnan(this->v_oa_min_)) ? -this->ti_ * (this->v_oa_min_ / this->kp_) : 0.0f;
     this->last_time_ = 0;
   }
   /// @brief Resets Kp, Ti, db without touching min and max

@@ -1,0 +1,56 @@
+substitutions:
+  pi_custom_kp: "0.26"
+  pi_custom_ti: "7.0"
+  pi_custom_db: "15"
+
+select:
+  # Выбор профиля настроек PI-регулятора:
+  #   Тихий (kp=0.25, ti=9.0, db=20): максимальный акустический комфорт, минимум переключений
+  #   Сбалансированный (kp=0.26, ti=7.0, db=15): оптимальный баланс для 6-скоростных моделей (3S, 4S, Lite)
+  #   Динамичный (O2) (kp=0.34, ti=7.0, db=15): быстрый отклик для 4-скоростного O2 и больших помещений
+  #   Пользовательский: параметры pi_custom_kp / pi_custom_ti / pi_custom_db из основного YAML-файла
+  - platform: template
+    id: tion_auto_pi_profile
+    name: Auto PI Profile
+    icon: mdi:tune-variant
+    optimistic: true
+    options:
+      - Тихий
+      - Сбалансированный
+      - Динамичный (O2)
+      - Пользовательский
+    initial_option: Пользовательский
+    entity_category: config
+    restore_value: true
+    on_value:
+      then:
+        - script.execute: tion_apply_pi_profile
+
+script:
+  - id: tion_apply_pi_profile
+    mode: restart
+    then:
+      - lambda: |-
+          #ifdef TION_ENABLE_PI_CONTROLLER
+          auto *api = id(tion_api).api();
+          const auto idx = id(tion_auto_pi_profile).active_index().value_or(3);
+          if (idx == 0) {
+            // Тихий
+            api->set_auto_pi_data(0.25f, 9.0f, 20);
+          } else if (idx == 1) {
+            // Сбалансированный
+            api->set_auto_pi_data(0.26f, 7.0f, 15);
+          } else if (idx == 2) {
+            // Динамичный (O2)
+            api->set_auto_pi_data(0.34f, 7.0f, 15);
+          } else {
+            // Пользовательский (из substitutions основного YAML)
+            api->set_auto_pi_data(${pi_custom_kp}f, ${pi_custom_ti}f, ${pi_custom_db});
+          }
+          #endif
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: tion_apply_pi_profile

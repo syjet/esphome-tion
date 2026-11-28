@@ -2,9 +2,9 @@ substitutions:
   # project version
   project_version: "2026.11.1"
   # project branch
-  project_branch: "v2026.11.1"
+  project_branch: "master"
   # project git source
-  project_source: github://dentra/esphome-tion@$project_branch
+  project_source: github://syjet/esphome-tion@$project_branch
   # project source refresh interval
   project_source_refresh: 12h
   # project identifier
